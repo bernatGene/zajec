@@ -1,5 +1,15 @@
 import argparse
+import json
 import sys
+
+from github import (
+    fetch_comments,
+    fetch_pr_meta,
+    fetch_review_comments,
+    fetch_reviews,
+    publish_comment,
+)
+from normalize import format_context
 
 
 def main() -> None:
@@ -20,14 +30,6 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "get-context":
-        from github import (
-            fetch_pr_meta,
-            fetch_comments,
-            fetch_reviews,
-            fetch_review_comments,
-        )
-        from normalize import format_context
-
         try:
             pr_data = fetch_pr_meta(args.repo, args.pr)
             comments = fetch_comments(args.repo, args.pr)
@@ -40,12 +42,8 @@ def main() -> None:
             sys.exit(1)
 
     elif args.command == "publish-comment":
-        from github import publish_comment
-
         try:
             publish_comment(args.repo, args.pr, args.body_file)
-            import json
-
             print(json.dumps({"repo": args.repo, "pr": args.pr, "published": True}))
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)
