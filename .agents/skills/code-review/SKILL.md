@@ -49,21 +49,17 @@ Write a short, actionable summary. Avoid repeating existing PR comments.
 
 Format:
 ```md
-# Zajec Review (confidence: 4/5)
+**Zajec Review** (confidence: 4/5)
 
 | Severity | File | Line | Finding | Status |
 |---|---|---:|---|---|
 | Medium | `src/foo.ts` | 42 | Possible null access when `bar` is undefined | New |
 | Low | `api/items.py` | 118 | Response shape may differ from existing endpoint contract | Possibly already discussed |
-
-Notes:
-- Existing PR comments were considered while preparing this summary.
-- This is a general summary comment, not inline review feedback.
 ```
 
 If no issues found:
 ```md
-# Zajec Review (confidence: 5/5)
+**Zajec Review** (confidence: 5/5)
 
 No additional issues identified based on the current diff and existing PR discussion.
 ```
@@ -76,14 +72,8 @@ zajec publish-comment --repo owner/repo --pr 123 --body-file review.md
 
 ## Constraints
 
-The agent reviewing code should:
-- report findings without attempting to fix them
-- avoid making changes to the codebase
-- publish only one summary comment per review session
-
-## Constraints
-
 The agent should not:
 - call `gh` directly for extra GitHub operations
 - browse PRs or search unrelated issues/comments
 - post multiple comments unless explicitly asked
+- make changes to the codebase or attempt to fix findings
