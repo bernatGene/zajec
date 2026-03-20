@@ -1,6 +1,6 @@
 import json
-import subprocess
 from pathlib import Path
+import subprocess
 
 
 def run_gh(repo: str, *args: str) -> str:

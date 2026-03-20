@@ -3,10 +3,10 @@ import json
 import sys
 
 from github import (
-    fetch_pr_meta,
     fetch_comments,
-    fetch_reviews,
+    fetch_pr_meta,
     fetch_review_comments,
+    fetch_reviews,
     publish_comment,
 )
 from normalize import format_context
