@@ -16,12 +16,26 @@ Review a PR by:
 4. writing one summary markdown comment
 5. publishing it with `zajec`
 
+## Invocation
+
+All `zajec` commands run via `uv`:
+
+```bash
+uv run zajec <command>
+```
+
+Examples:
+```bash
+uv run zajec get-context --repo owner/repo --pr 123
+uv run zajec publish-comment --repo owner/repo --pr 123 --body-file review.md
+```
+
 ## Workflow
 
 ### 1. Get PR Context
 
 ```bash
-zajec get-context --repo owner/repo --pr 123
+uv run zajec get-context --repo owner/repo --pr 123
 ```
 
 This returns normalized JSON with PR metadata and all comments.
@@ -67,7 +81,7 @@ No additional issues identified based on the current diff and existing PR discus
 ### 4. Publish Comment
 
 ```bash
-zajec publish-comment --repo owner/repo --pr 123 --body-file review.md
+uv run zajec publish-comment --repo owner/repo --pr 123 --body-file review.md
 ```
 
 ## Constraints
