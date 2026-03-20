@@ -42,6 +42,12 @@ The tool exposes exactly two commands:
 
 Error messages go to stderr with non-zero exit code.
 
+## Git Workflow
+
+- Always work on the current branch
+- Never switch branches unless explicitly requested
+- Commit and push to the current branch; do not create or switch to other branches
+
 ## Conversation and Writing Style
 
 Address me as if we were coworkers trying to solve a problem via slack, professional
