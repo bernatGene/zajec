@@ -5,7 +5,7 @@ from pathlib import Path
 
 def run_gh(repo: str, *args: str) -> str:
     cmd = ["gh", "--repo", repo] + list(args)
-    result = subprocess.run_gh(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"gh failed: {result.stderr}")
     return result.stdout
