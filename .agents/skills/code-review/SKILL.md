@@ -76,6 +76,13 @@ zajec publish-comment --repo owner/repo --pr 123 --body-file review.md
 
 ## Constraints
 
+The agent reviewing code should:
+- report findings without attempting to fix them
+- avoid making changes to the codebase
+- publish only one summary comment per review session
+
+## Constraints
+
 The agent should not:
 - call `gh` directly for extra GitHub operations
 - browse PRs or search unrelated issues/comments

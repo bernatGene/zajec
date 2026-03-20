@@ -11,6 +11,14 @@ def run_gh(repo: str, *args: str) -> str:
     return result.stdout
 
 
+def run_gh_api(api_path: str) -> str:
+    cmd = ["gh", "api", api_path, "--paginate"]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"gh api failed: {result.stderr}")
+    return result.stdout
+
+
 def fetch_pr_meta(repo: str, pr_number: int) -> dict:
     return json.loads(
         run_gh(
@@ -25,23 +33,17 @@ def fetch_pr_meta(repo: str, pr_number: int) -> dict:
 
 
 def fetch_comments(repo: str, pr_number: int) -> list:
-    output = run_gh(
-        repo, "api", f"repos/{repo}/issues/{pr_number}/comments", "--paginate"
-    )
+    output = run_gh_api(f"repos/{repo}/issues/{pr_number}/comments")
     return json.loads(output) if output.strip() else []
 
 
 def fetch_reviews(repo: str, pr_number: int) -> list:
-    output = run_gh(
-        repo, "api", f"repos/{repo}/pulls/{pr_number}/reviews", "--paginate"
-    )
+    output = run_gh_api(f"repos/{repo}/pulls/{pr_number}/reviews")
     return json.loads(output) if output.strip() else []
 
 
 def fetch_review_comments(repo: str, pr_number: int) -> list:
-    output = run_gh(
-        repo, "api", f"repos/{repo}/pulls/{pr_number}/comments", "--paginate"
-    )
+    output = run_gh_api(f"repos/{repo}/pulls/{pr_number}/comments")
     return json.loads(output) if output.strip() else []
 
 

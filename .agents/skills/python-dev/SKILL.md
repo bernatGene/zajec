@@ -26,15 +26,3 @@ description: Python development practices using uv and ruff
   - Circular import workaround
   - Measured startup issue (add a comment)
 
-## Project Structure
-
-- Single package at repo root (not nested)
-- `pyproject.toml` for configuration
-- Use `dependency-groups` for dev dependencies
-- Entry point in `[project.scripts]` table
-
-## Error Handling
-
-- stdout for JSON output
-- stderr for human-readable errors
-- Non-zero exit code on failure
