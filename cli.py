@@ -1,0 +1,60 @@
+import argparse
+import sys
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="zajec")
+    subparsers = parser.add_subparsers(dest="command")
+
+    ctx_parser = subparsers.add_parser("get-context", help="Fetch PR context as JSON")
+    ctx_parser.add_argument("--repo", required=True, help="owner/repo")
+    ctx_parser.add_argument("--pr", type=int, required=True, help="PR number")
+
+    pub_parser = subparsers.add_parser(
+        "publish-comment", help="Publish a comment to PR"
+    )
+    pub_parser.add_argument("--repo", required=True, help="owner/repo")
+    pub_parser.add_argument("--pr", type=int, required=True, help="PR number")
+    pub_parser.add_argument("--body-file", required=True, help="Path to markdown file")
+
+    args = parser.parse_args()
+
+    if args.command == "get-context":
+        from github import (
+            fetch_pr_meta,
+            fetch_comments,
+            fetch_reviews,
+            fetch_review_comments,
+        )
+        from normalize import format_context
+
+        try:
+            pr_data = fetch_pr_meta(args.repo, args.pr)
+            comments = fetch_comments(args.repo, args.pr)
+            reviews = fetch_reviews(args.repo, args.pr)
+            review_comments = fetch_review_comments(args.repo, args.pr)
+            result = format_context(pr_data, comments, reviews, review_comments)
+            print(result)
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    elif args.command == "publish-comment":
+        from github import publish_comment
+
+        try:
+            publish_comment(args.repo, args.pr, args.body_file)
+            import json
+
+            print(json.dumps({"repo": args.repo, "pr": args.pr, "published": True}))
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

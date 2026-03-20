@@ -1,7 +1,13 @@
 [project]
 name = "zajec"
 version = "0.1.0"
-description = "Add your description here"
+description = "Local CLI tool for code review agent to fetch PR context and publish comments"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = []
+
+[project.optional-dependencies]
+dev = ["ruff"]
+
+[project.scripts]
+zajec = "cli:main"
