@@ -25,10 +25,12 @@ function isUser(data: unknown): data is User {
     typeof data === 'object' &&
     data !== null &&
     'id' in data &&
-    typeof (data as Record<string, unknown>).id === 'number'
+    typeof (data as Record<string, unknown>).id === 'number'  // OK: as used for narrowing inside guard
   );
 }
 ```
+
+> **Note**: `as` is acceptable ONLY inside type guards for temporary narrowing during validation. Never use `as` to cast return types or bypass type checking.
 
 ### Non-Null Assertions Require Justification
 

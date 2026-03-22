@@ -7,6 +7,8 @@ description: Svelte 5 and SvelteKit code review guidelines focusing on runes, de
 
 Focus areas: Svelte 5 runes, derived vs effects, SvelteKit streaming, server/client state separation, and component reuse.
 
+> **TypeScript**: For TypeScript-specific patterns (type assertions, strict mode, etc.), see [ts-review](../ts-review/SKILL.md).
+
 ---
 
 ## Svelte 5 Runes
@@ -279,6 +281,73 @@ export const load = async () => {
 
 ---
 
+## Forms
+
+### Form Actions with Progressive Enhancement
+
+```typescript
+// src/routes/contact/+page.server.ts
+import type { Actions } from './$types';
+import { fail } from '@sveltejs/kit';
+
+export const actions: Actions = {
+  default: async ({ request }) => {
+    const data = await request.formData();
+    const email = data.get('email');
+    
+    if (!email || typeof email !== 'string') {
+      return fail(400, { email, missing: true });
+    }
+    
+    await sendEmail(email);
+    return { success: true };
+  }
+};
+```
+
+```svelte
+<!-- src/routes/contact/+page.svelte -->
+<script lang="ts">
+  import { enhance } from '$app/forms';
+  
+  let { form } = $props();
+</script>
+
+<form method="POST" use:enhance>
+  <input name="email" type="email" />
+  {#if form?.missing}
+    <p class="error">Email is required</p>
+  {/if}
+  <button type="submit">Send</button>
+</form>
+```
+
+> **Note**: Always use `use:enhance` for progressive enhancement (works without JS).
+
+---
+
+## Data Revalidation
+
+### Invalidate and Refresh
+
+```svelte
+<script lang="ts">
+  import { invalidate, invalidateAll } from '$app/navigation';
+  
+  // ✅ Refresh specific data
+  async function refreshUser() {
+    await invalidate('app:user');
+  }
+  
+  // ✅ Refresh all data on page
+  async function refreshAll() {
+    await invalidateAll();
+  }
+</script>
+```
+
+---
+
 ## Component Design
 
 ### Check for Existing Components
@@ -393,6 +462,9 @@ export const load = async () => {
 - [ ] Parallelize independent requests with Promise.all
 - [ ] No waterfall data loading
 - [ ] Skeleton components in {#await} blocks
+- [ ] Form actions use `use:enhance`
+- [ ] Form validation returns `fail()` with proper types
+- [ ] `invalidate`/`invalidateAll` for data refresh
 
 ### Component Design
 - [ ] Use `$lib/` imports (no relative `../` or absolute `/src/` paths)

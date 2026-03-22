@@ -35,6 +35,23 @@ def process(items: set[int]) -> tuple[str, int]:
     pass
 ```
 
+### Pathlib Over os.path
+
+```python
+from pathlib import Path
+
+# ❌ Old os.path style
+import os
+file_path = os.path.join(os.path.dirname(__file__), 'data', 'file.txt')
+
+# ✅ Modern pathlib
+file_path = Path(__file__).parent / 'data' / 'file.txt'
+
+# ✅ Pathlib methods
+if file_path.exists():
+    content = file_path.read_text()
+```
+
 ### TypedDict and Pydantic for API Contracts
 
 Use TypedDict for simple structures, Pydantic for validation (especially in FastAPI):
@@ -475,97 +492,33 @@ def process_user_data(raw_data: dict) -> User:
 
 ## Testing
 
-### Test Organization
+### Organization & Patterns
 
 ```python
-# ✅ Use classes for related tests
-class TestUserAuthentication:
-    """User auth tests"""
+from unittest.mock import Mock, patch, AsyncMock, ANY
+from typing import Generator
 
+# ✅ Classes for related tests
+class TestUserAuthentication:
     def test_login_with_valid_credentials(self, user):
         assert authenticate(user.email, "password") is True
 
-    def test_login_locks_after_failed_attempts(self, user):
-        for _ in range(5):
-            authenticate(user.email, "wrong")
-        assert user.is_locked is True
-
-# ✅ Marks for filtering
-@pytest.mark.slow
-def test_large_data_processing():
-    pass
-
-@pytest.mark.integration
-def test_database_connection():
-    pass
-
-# Run: pytest -m "not slow"
-```
-
-### Parameterized Tests
-
-```python
-# ✅ Test multiple scenarios
+# ✅ Parameterized tests
 @pytest.mark.parametrize("input,expected", [
     ("hello", "HELLO"),
     ("", ""),
-    ("123", "123"),
 ])
 def test_uppercase(input: str, expected: str):
     assert input.upper() == expected
 
-# ✅ Test exception cases
-@pytest.mark.parametrize("invalid_input", [
-    None,
-    [],
-    object(),
-])
-def test_validate_rejects_invalid(invalid_input):
-    with pytest.raises(ValidationError):
-        validate(invalid_input)
-```
-
-### Mock Patterns
-
-```python
-from unittest.mock import Mock, patch, AsyncMock, ANY
-
-# ✅ Mock and verify calls
-def test_send_email():
-    mock_client = Mock()
-    mock_client.send.return_value = True
-
-    service = EmailService(client=mock_client)
-    result = service.send_welcome_email("user@example.com")
-
-    assert result is True
-    mock_client.send.assert_called_once_with(
-        to="user@example.com",
-        subject="Welcome!",
-        body=ANY,
-    )
-
-# ✅ Patch at module level
+# ✅ Mock and verify
 @patch("myapp.services.external_api.call")
 def test_with_patched_api(mock_call):
     mock_call.return_value = {"status": "ok"}
     result = process_data()
     assert result["status"] == "ok"
 
-# ✅ AsyncMock for async functions
-async def test_async_function():
-    mock_fetch = AsyncMock(return_value={"data": "test"})
-    with patch("myapp.client.fetch", mock_fetch):
-        result = await get_data()
-    assert result == {"data": "test"}
-```
-
-### Fixtures with Cleanup
-
-```python
-from typing import Generator
-
-# ✅ Cleanup with yield
+# ✅ Fixtures with cleanup
 @pytest.fixture
 def database() -> Generator[Database, None, None]:
     db = Database()
@@ -573,22 +526,11 @@ def database() -> Generator[Database, None, None]:
     yield db
     db.disconnect()
 
-# ✅ Async fixtures
-@pytest.fixture
-async def async_client() -> AsyncGenerator[AsyncClient, None]:
-    async with AsyncClient() as client:
-        yield client
-
-# ✅ Shared fixtures in conftest.py
-@pytest.fixture(scope="session")
-def app():
-    """Shared app instance"""
-    return create_app()
-
-@pytest.fixture(scope="module")
-def db(app):
-    """Shared per module"""
-    return app.db
+# ✅ Marks for filtering
+@pytest.mark.slow
+def test_large_data_processing():
+    pass
+# Run: pytest -m "not slow"
 ```
 
 ---
@@ -601,6 +543,7 @@ def db(app):
 - [ ] NEVER import `List`, `Dict`, `Set`, `Tuple` from typing
 - [ ] Use TypedDict or Pydantic for API contracts
 - [ ] Use TypeVar for generic constraints
+- [ ] `pathlib` instead of `os.path`
 
 ### Async Code
 - [ ] Use TaskGroup (3.11+) or proper gather patterns

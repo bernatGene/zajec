@@ -1,20 +1,23 @@
 ---
 name: code-review
-description: Review PR changes using local diff and zajec tool
+description: Systematic PR review using zajec context, language-specific skills, and structured analysis
 ---
 
 # Code Review Skill
 
-For Python projects, also follow the [python-dev](../python-dev/SKILL.md) skill.
+Systematic PR review workflow combining zajec for GitHub context, git for local diff analysis, and language-specific skills for detailed code review.
 
-## Purpose
+## Language-Specific Guidelines
 
-Review a PR by:
-1. fetching PR discussion context with `zajec`
-2. inspecting the local diff and code using own repo access
-3. avoiding repeating issues already raised in the PR discussion
-4. writing one summary markdown comment
-5. publishing it with `zajec`
+Based on file types in the diff, consult the appropriate skill:
+
+- **Python files (`.py`)** → Follow [python-review](../python-review/SKILL.md)
+  - Type annotations, async patterns, error handling, testing
+- **TypeScript/JavaScript files (`.ts`, `.js`)** → Follow [ts-review](../ts-review/SKILL.md)
+  - Type safety, strict mode, async patterns, complexity
+- **Svelte files (`.svelte`)** → Follow [svelte-review](../svelte-review/SKILL.md)
+  - Runes, SvelteKit patterns, server/client state, streaming
+- **Mixed projects** → Apply all relevant skills as appropriate
 
 ## Invocation
 
@@ -30,64 +33,157 @@ uv run zajec get-context --repo owner/repo --pr 123
 uv run zajec publish-comment --repo owner/repo --pr 123 --body-file review.md
 ```
 
-## Workflow
+## Review Process
 
-### 1. Get PR Context
+> **Track progress with todo tool** - At the start of each phase, update todo list to mark current phase as in_progress and previous as completed.
 
-```bash
-uv run zajec get-context --repo owner/repo --pr 123
-```
+### Phase 1: Gather Context (2-3 min)
 
-This returns normalized JSON with PR metadata and all comments.
+ **Fetch PR discussion context**
+   ```bash
+   uv run zajec get-context --repo owner/repo --pr <n>
+   ```
+   - Read PR description and linked issues
+   - Review existing comments to avoid repetition
+   - Note any architectural decisions or requirements
 
-### 2. Review Local Changes
+2. **Assess PR scope**
+   - Check file count and line count
+   - Identify primary languages/frameworks
+   - Flag if >400 lines (suggest splitting)
 
-Use git to inspect the diff:
-```bash
-git diff [base]...[head]
-git diff --name-only [base]...[head]
-```
+### Phase 2: Analyze Diff Systematically (5-15 min)
 
-Review for:
-- Logic correctness and edge cases
-- Error handling completeness
-- Type safety (strict hints, no `Any`)
-- No hardcoded values where they should be configurable
-- No commented-out code left behind
-- No unnecessary complexity
-- Security: no secrets, input validation, auth/authz checks
+ **Inspect changed files**
+   ```bash
+   git diff --name-only [base]...[head]
+   git diff [base]...[head]
+   ```
 
-### 3. Write Summary Comment
+2. **Apply language-specific review**
+   
+   For each changed file, consult the appropriate skill:
+   - `.py` files → [python-review](../python-review/SKILL.md)
+   - `.ts/.js` files → [ts-review](../ts-review/SKILL.md)
+   - `.svelte` files → [svelte-review](../svelte-review/SKILL.md)
 
-Write a short, actionable summary. Avoid repeating existing PR comments.
+3. **Cross-cutting concerns (all files):**
+   - Logic correctness and edge cases
+   - Security: no secrets, input validation, auth checks
+   - No commented-out code or dead code
+   - No typos in variable names, comments, or strings
+   - Early returns to reduce nesting
+   - Functions < 50 lines, < 3 nesting levels
+   - No magic values (use named constants)
 
-Format:
+### Phase 3: Pull the Thread (5-10 min)
+
+Explore beyond the diff to catch issues the diff doesn't show. For each significant change:
+
+1. **Understand the context**
+   - Read the full file, not just the diff lines
+   - Check the file's purpose and architecture
+   - Look at imports and dependencies
+
+2. **Trace references**
+   - Find all call sites of modified functions (LSP, grep)
+   - Check if return type changes break callers
+   - Look for similar patterns elsewhere that might need updating
+
+3. **Identify cascade effects**
+   - New errors thrown? Check if callers handle them
+   - Changed signatures? Verify all usages updated
+   - New dependencies? Check if they're imported correctly
+   - State changes? Verify no race conditions or shared state issues
+
+4. **Check test coverage**
+   - Are changed functions tested?
+   - Do tests cover edge cases you're concerned about?
+   - Are new error paths tested?
+
+5. **Validate assumptions**
+   - Does the implementation match PR description?
+   - Are TODOs/FIXMEs intentional?
+   - Does documentation match the code?
+
+### Phase 4: Apply Severity Labels
+
+For each finding, assign severity:
+
+- **🔴 [blocking]** - Security issue, logic bug, type error. Must fix.
+- **🟡 [important]** - Maintainability issue, performance concern. Should fix.
+- **🟢 [nit]** - Style preference, minor suggestion. Not blocking.
+- **💡 [suggestion]** - Alternative approach to consider.
+- **📚 [learning]** - Educational note, no action required.
+- **🎉 [praise]** - Good pattern, well done.
+
+### Phase 5: Write Review Summary
+
+Create a structured review document avoiding repetition of existing PR comments.
+
+**Confidence Rating (merge readiness):**
+- 5/5 - No issues identified, ready to merge
+- 4/5 - Minor suggestions, overall good
+- 3/5 - Some concerns worth discussing
+- 2/5 - Significant issues need addressing
+- 1/5 - Serious problems, do not merge
+
+**Format:**
 ```md
 **Zajec Review** (confidence: 4/5)
 
 | Severity | File | Line | Finding | Status |
 |---|---|---:|---|---|
-| Medium | `src/foo.ts` | 42 | Possible null access when `bar` is undefined | New |
-| Low | `api/items.py` | 118 | Response shape may differ from existing endpoint contract | Possibly already discussed |
+| 🟡 Important | `src/user.ts` | 42 | Prefer `$derived` over `$effect` for computed value | New |
+| 🟢 Nit | `api/items.py` | 118 | Function exceeds 50 lines, consider extraction | New |
+| 🔴 Blocking | `auth.ts` | 25 | Module-level variable shared across users | New |
+
+**Summary:**
+- 3 new issues identified (1 blocking)
+- 1 issue overlaps with existing discussion
+- Overall: Good structure, address the blocking issue before merge
 ```
 
-If no issues found:
+**If no issues:**
 ```md
 **Zajec Review** (confidence: 5/5)
 
 No additional issues identified based on the current diff and existing PR discussion.
 ```
 
-### 4. Publish Comment
+### Phase 6: Publish Review
+
 
 ```bash
-uv run zajec publish-comment --repo owner/repo --pr 123 --body-file review.md
+uv run zajec publish-comment --repo owner/repo --pr <n> --body-file review.md
 ```
+
+## Review Principles
+
+**Effective Feedback:**
+- Specific and actionable, not vague
+- Focused on code, not the person
+- Educational when introducing patterns
+- Balanced (note good practices too)
+
+**What to Review:**
+- Logic correctness and edge cases
+- Type safety per language skill
+- Security vulnerabilities
+- Performance implications
+- Maintainability and complexity
+
+**What NOT to Review:**
+- Code formatting (linters handle this)
+- Preferences over established patterns
+- Opinion-based changes without technical merit
 
 ## Constraints
 
 The agent should not:
-- call `gh` directly for extra GitHub operations
-- browse PRs or search unrelated issues/comments
-- post multiple comments unless explicitly asked
-- make changes to the codebase or attempt to fix findings
+- Call `gh` directly for GitHub operations (use zajec)
+- Browse PRs or search unrelated issues
+- Post multiple comments unless explicitly asked
+- Make changes to the codebase
+- Use `as` type assertions to bypass errors
+- Suggest formatting changes (handled by ruff/prettier)
