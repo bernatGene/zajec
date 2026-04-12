@@ -17,7 +17,7 @@ DEFAULTS = {
     "opencode_command": "opencode",
     "opencode_agent": "codereview",
     "max_forbidden_retries": 5,
-    "comment_trigger_prefix": "@zajec",
+    "comment_trigger_prefix": "#zajec",
 }
 
 

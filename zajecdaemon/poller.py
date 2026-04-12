@@ -109,7 +109,7 @@ class Poller:
         new_comment_id = _latest_zajec_comment_id(comments)
         if new_comment_id > state.last_zajec_comment_id_seen:
             state.last_zajec_comment_id_seen = new_comment_id
-            logger.info("New @zajec comment on %s#%d", repo, pr_number)
+            logger.info("New #zajec comment on %s#%d", repo, pr_number)
             await self._maybe_enqueue(
                 repo, pr_number, pr_url, head_sha, new_comment_id, enqueue
             )
