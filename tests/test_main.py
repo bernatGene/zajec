@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 import json
-from shutil import which
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -41,7 +40,7 @@ class TestValidateStartup:
         config_file = tmp_path / "config.json"
         config_file.write_text(json.dumps(config))
 
-        with patch("zajecdaemon.main.which", side_effect=which):
+        with patch("zajecdaemon.main.which", return_value="/usr/bin/cmd"):
             daemon = Daemon(config_file)
             daemon._validate_startup()
 
@@ -59,7 +58,7 @@ async def test_enqueue_task_posts_comment(tmp_path):
     config_file = tmp_path / "config.json"
     config_file.write_text(json.dumps(config))
 
-    with patch("zajecdaemon.main.which", side_effect=which):
+    with patch("zajecdaemon.main.which", return_value="/usr/bin/cmd"):
         daemon = Daemon(config_file)
 
     task = Task(
