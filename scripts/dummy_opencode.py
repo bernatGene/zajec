@@ -4,10 +4,10 @@
 Simulates opencode's JSON-stream output format. Behavior is controlled
 via the DUMMY_OUTCOME environment variable:
 
-  success         - normal completion (default)
-  forbidden_once  - emits a forbidden-command block, then succeeds on resume
-  forbidden_always- always emits a forbidden-command block
-  failure         - emits an error and exits non-zero
+  success          - normal completion (default)
+  forbidden_once   - emits a forbidden-command block, then succeeds on resume
+  forbidden_always - always emits a forbidden-command block
+  failure          - emits an error and exits non-zero
 """
 
 import argparse
@@ -15,6 +15,37 @@ import json
 import os
 import sys
 import uuid
+
+
+def _step_finish(reason: str, session_id: str) -> dict:
+    return {
+        "type": "step_finish",
+        "sessionID": session_id,
+        "part": {"reason": reason},
+    }
+
+
+def _tool_use_rejected(session_id: str) -> dict:
+    return {
+        "type": "tool_use",
+        "sessionID": session_id,
+        "part": {
+            "type": "tool",
+            "tool": "bash",
+            "state": {
+                "status": "error",
+                "error": "permission denied: command not allowed",
+            },
+        },
+    }
+
+
+def _assistant(content: str, session_id: str) -> dict:
+    return {
+        "type": "assistant",
+        "content": content,
+        "sessionID": session_id,
+    }
 
 
 def main() -> None:
@@ -39,70 +70,14 @@ def main() -> None:
     print(json.dumps({"type": "session_start", "sessionID": session_id}))
 
     if outcome == "success" or (outcome == "forbidden_once" and is_resume):
-        print(
-            json.dumps(
-                {
-                    "type": "assistant",
-                    "content": "Review complete.",
-                    "sessionID": session_id,
-                }
-            )
-        )
-        print(
-            json.dumps(
-                {
-                    "type": "step_finish",
-                    "reason": "stop",
-                    "sessionID": session_id,
-                }
-            )
-        )
+        print(json.dumps(_assistant("Review complete.", session_id)))
+        print(json.dumps(_step_finish("stop", session_id)))
     elif outcome == "forbidden_once" and not is_resume:
-        print(
-            json.dumps(
-                {
-                    "type": "tool_use",
-                    "tool": "bash",
-                    "state": {
-                        "status": "error",
-                        "error": "permission denied: command not allowed",
-                    },
-                    "sessionID": session_id,
-                }
-            )
-        )
-        print(
-            json.dumps(
-                {
-                    "type": "step_finish",
-                    "reason": "tool-calls",
-                    "sessionID": session_id,
-                }
-            )
-        )
+        print(json.dumps(_tool_use_rejected(session_id)))
+        print(json.dumps(_step_finish("tool-calls", session_id)))
     elif outcome == "forbidden_always":
-        print(
-            json.dumps(
-                {
-                    "type": "tool_use",
-                    "tool": "bash",
-                    "state": {
-                        "status": "error",
-                        "error": "permission denied: command not allowed",
-                    },
-                    "sessionID": session_id,
-                }
-            )
-        )
-        print(
-            json.dumps(
-                {
-                    "type": "step_finish",
-                    "reason": "tool-calls",
-                    "sessionID": session_id,
-                }
-            )
-        )
+        print(json.dumps(_tool_use_rejected(session_id)))
+        print(json.dumps(_step_finish("tool-calls", session_id)))
     elif outcome == "failure":
         print(
             json.dumps(
@@ -115,15 +90,7 @@ def main() -> None:
         )
         sys.exit(1)
     else:
-        print(
-            json.dumps(
-                {
-                    "type": "step_finish",
-                    "reason": "stop",
-                    "sessionID": session_id,
-                }
-            )
-        )
+        print(json.dumps(_step_finish("stop", session_id)))
 
 
 if __name__ == "__main__":

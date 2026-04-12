@@ -69,7 +69,8 @@ async def test_run_opencode_forbidden_once_then_success(tmp_path):
     stop_events = [
         e
         for e in json_lines
-        if e.get("type") == "step_finish" and e.get("reason") == "stop"
+        if e.get("type") == "step_finish"
+        and (e.get("reason") or e.get("part", {}).get("reason")) == "stop"
     ]
     assert len(stop_events) >= 1
 

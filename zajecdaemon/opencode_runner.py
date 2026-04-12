@@ -68,7 +68,8 @@ async def _run_command(
                 if not parsed.session_id:
                     parsed.session_id = session_id
             if event.get("type") == "step_finish":
-                parsed.step_finish_reason = event.get("reason", "")
+                reason = event.get("reason") or event.get("part", {}).get("reason", "")
+                parsed.step_finish_reason = reason
 
     await proc.wait()
     if proc.returncode != 0:
