@@ -10,6 +10,7 @@ from zajecdaemon.models import Task
 from zajecdaemon.poller import Poller
 from zajecdaemon.queueing import QueueManager
 from zajecdaemon.state import StateStore
+from zajecdaemon.worker import process_task
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ class Daemon:
 
             logger.info("Worker %s processing %s#%d", name, task.repo, task.pr_number)
             try:
-                await self._process_task(task)
+                await process_task(task, self._config, self._state)
             except Exception:
                 logger.exception(
                     "Worker %s failed processing %s#%d", name, task.repo, task.pr_number
@@ -95,16 +96,6 @@ class Daemon:
                 self._queue_mgr.set_idle(task.repo, task.pr_number)
                 if rerun:
                     await self._enqueue_task(task)
-
-    async def _process_task(self, task: Task) -> None:
-        # Phase 2 will implement worktree prep and opencode runner
-        state = self._state.get(task.repo, task.pr_number)
-        if state:
-            state.last_run_at = task.enqueued_at
-            state.last_run_status = "pending"
-            state.last_session_id = ""
-            self._state.set(state)
-            self._state.save()
 
 
 def main() -> None:
