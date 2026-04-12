@@ -6,6 +6,7 @@ import signal
 import sys
 
 from zajecdaemon.config import load_config
+from zajecdaemon.github_cli import post_comment
 from zajecdaemon.models import Task
 from zajecdaemon.poller import Poller
 from zajecdaemon.queueing import QueueManager
@@ -75,6 +76,12 @@ class Daemon:
         await self._task_queue.put(task)
         self._queue_mgr.set_running(task.repo, task.pr_number)
         logger.info("Enqueued task for %s#%d", task.repo, task.pr_number)
+        try:
+            await post_comment(task.repo, task.pr_number, "review in progress")
+        except Exception:
+            logger.exception(
+                "Failed to post comment on %s#%d", task.repo, task.pr_number
+            )
 
     async def _worker(self, name: str) -> None:
         logger.info("Worker %s started", name)

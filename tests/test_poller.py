@@ -22,23 +22,23 @@ class TestLatestZajecCommentId:
         assert _latest_zajec_comment_id(comments) == 0
 
     def test_matching_comment(self):
-        comments = [{"id": 10, "body": "@zajec review"}]
+        comments = [{"id": 10, "body": "#zajec review"}]
         assert _latest_zajec_comment_id(comments) == 10
 
     def test_highest_matching_id(self):
         comments = [
-            {"id": 5, "body": "@zajec first"},
+            {"id": 5, "body": "#zajec first"},
             {"id": 10, "body": "normal comment"},
-            {"id": 15, "body": "@zajec second"},
+            {"id": 15, "body": "#zajec second"},
         ]
         assert _latest_zajec_comment_id(comments) == 15
 
     def test_prefix_with_whitespace(self):
-        comments = [{"id": 1, "body": "  @zajec review"}]
+        comments = [{"id": 1, "body": "  #zajec review"}]
         assert _latest_zajec_comment_id(comments) == 1
 
     def test_prefix_in_middle(self):
-        comments = [{"id": 1, "body": "please @zajec review"}]
+        comments = [{"id": 1, "body": "please #zajec review"}]
         assert _latest_zajec_comment_id(comments) == 0
 
 
@@ -228,7 +228,7 @@ class TestPoller:
                 "headRefName": "branch",
                 "state": "open",
             }
-            mock_comments.return_value = [{"id": 100, "body": "@zajec review"}]
+            mock_comments.return_value = [{"id": 100, "body": "#zajec review"}]
 
             await poller.poll_repo("owner/repo", capture)
 
