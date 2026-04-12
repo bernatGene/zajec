@@ -30,7 +30,7 @@ def _make_task(repo: str = "owner/repo", pr_number: int = 42) -> Task:
 
 
 @pytest.mark.asyncio
-async def test_process_task_success(tmp_path):
+async def test_process_task_new_worktree(tmp_path):
     config = _make_config(tmp_path)
     state = StateStore(tmp_path / "state" / "state.json")
     pr_state = PRState(
@@ -48,6 +48,10 @@ async def test_process_task_success(tmp_path):
         ) as mock_clone,
         patch("zajecdaemon.worker.fetch_pr_ref", new_callable=AsyncMock) as mock_fetch,
         patch(
+            "zajecdaemon.worker.worktree_path",
+            return_value=Path("/tmp/wt"),
+        ),
+        patch(
             "zajecdaemon.worker.ensure_worktree",
             new_callable=AsyncMock,
             return_value=Path("/tmp/wt"),
@@ -64,6 +68,45 @@ async def test_process_task_success(tmp_path):
     assert updated is not None
     assert updated.head_sha_processed == "abc123"
     assert updated.last_zajec_comment_id_processed == 99
+    assert updated.last_run_status == "worktree_ready"
+
+
+@pytest.mark.asyncio
+async def test_process_task_existing_worktree_skips_fetch(tmp_path):
+    config = _make_config(tmp_path)
+    state = StateStore(tmp_path / "state" / "state.json")
+    pr_state = PRState(
+        repo="owner/repo",
+        pr_number=42,
+        pr_url="https://github.com/owner/repo/pull/42",
+        head_sha_seen="abc123",
+        last_zajec_comment_id_seen=99,
+    )
+    state.set(pr_state)
+
+    wt_path = tmp_path / "repos" / "owner__repo" / "worktrees" / "42"
+    wt_path.mkdir(parents=True)
+
+    with (
+        patch(
+            "zajecdaemon.worker.ensure_controller_clone", new_callable=AsyncMock
+        ) as mock_clone,
+        patch("zajecdaemon.worker.fetch_pr_ref", new_callable=AsyncMock) as mock_fetch,
+        patch(
+            "zajecdaemon.worker.ensure_worktree",
+            new_callable=AsyncMock,
+            return_value=wt_path,
+        ) as mock_wt,
+    ):
+        task = _make_task()
+        await process_task(task, config, state)
+
+    mock_clone.assert_awaited_once_with(config.base_dir, "owner/repo")
+    mock_fetch.assert_not_awaited()
+    mock_wt.assert_awaited_once_with(config.base_dir, "owner/repo", 42)
+
+    updated = state.get("owner/repo", 42)
+    assert updated is not None
     assert updated.last_run_status == "worktree_ready"
 
 
@@ -129,6 +172,10 @@ async def test_process_task_no_existing_state(tmp_path):
     with (
         patch("zajecdaemon.worker.ensure_controller_clone", new_callable=AsyncMock),
         patch("zajecdaemon.worker.fetch_pr_ref", new_callable=AsyncMock),
+        patch(
+            "zajecdaemon.worker.worktree_path",
+            return_value=Path("/nonexistent"),
+        ),
         patch(
             "zajecdaemon.worker.ensure_worktree",
             new_callable=AsyncMock,

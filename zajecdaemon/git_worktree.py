@@ -60,13 +60,17 @@ async def fetch_pr_ref(base_dir: Path, repo: str, pr_number: int) -> None:
     )
 
 
+def worktree_path(base_dir: Path, repo: str, pr_number: int) -> Path:
+    return _worktree_path(base_dir, repo, pr_number)
+
+
 async def ensure_worktree(base_dir: Path, repo: str, pr_number: int) -> Path:
     worktree = _worktree_path(base_dir, repo, pr_number)
     branch = f"pr/{pr_number}"
     if worktree.exists():
         logger.info("Resetting worktree for %s#%d", repo, pr_number)
-        await _run_git("checkout", branch, cwd=worktree)
-        await _run_git("reset", "--hard", branch, cwd=worktree)
+        await _run_git("fetch", "origin", f"pull/{pr_number}/head", cwd=worktree)
+        await _run_git("reset", "--hard", "FETCH_HEAD", cwd=worktree)
         await _run_git("clean", "-fdx", cwd=worktree)
     else:
         logger.info("Creating worktree for %s#%d", repo, pr_number)
