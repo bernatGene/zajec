@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from zajecdaemon.config import Config
 from zajecdaemon.models import PRState, Task
 from zajecdaemon.poller import (
     Poller,
@@ -79,6 +80,14 @@ class TestLatestNonMergeSha:
 
 
 class TestPoller:
+    def _make_config(self, tmp_path):
+        return Config(
+            poll_interval_seconds=60,
+            worker_concurrency=1,
+            base_dir=tmp_path,
+            repos=["owner/repo"],
+        )
+
     def _make_state(self, tmp_path, states=None):
         path = tmp_path / "state.json"
         store = StateStore(path)
@@ -91,7 +100,7 @@ class TestPoller:
     async def test_new_pr_enqueued(self, tmp_path):
         state = self._make_state(tmp_path)
         qm = QueueManager()
-        poller = Poller(state, qm)
+        poller = Poller(state, qm, self._make_config(tmp_path))
         enqueued = []
 
         async def capture(task: Task):
@@ -146,7 +155,7 @@ class TestPoller:
         )
         state = self._make_state(tmp_path, [initial])
         qm = QueueManager()
-        poller = Poller(state, qm)
+        poller = Poller(state, qm, self._make_config(tmp_path))
         enqueued = []
 
         async def capture(task: Task):
@@ -195,7 +204,7 @@ class TestPoller:
         )
         state = self._make_state(tmp_path, [initial])
         qm = QueueManager()
-        poller = Poller(state, qm)
+        poller = Poller(state, qm, self._make_config(tmp_path))
         enqueued = []
 
         async def capture(task: Task):
@@ -246,7 +255,7 @@ class TestPoller:
         )
         state = self._make_state(tmp_path, [initial])
         qm = QueueManager()
-        poller = Poller(state, qm)
+        poller = Poller(state, qm, self._make_config(tmp_path))
         enqueued = []
 
         async def capture(task: Task):
@@ -300,7 +309,7 @@ class TestPoller:
         )
         state = self._make_state(tmp_path, [initial])
         qm = QueueManager()
-        poller = Poller(state, qm)
+        poller = Poller(state, qm, self._make_config(tmp_path))
         enqueued = []
 
         async def capture(task: Task):
@@ -357,20 +366,27 @@ class TestPoller:
         )
         state = self._make_state(tmp_path, [initial])
         qm = QueueManager()
-        poller = Poller(state, qm)
+        config = self._make_config(tmp_path)
+        poller = Poller(state, qm, config)
         enqueued = []
 
         async def capture(task: Task):
             enqueued.append(task)
 
-        with patch(
-            "zajecdaemon.poller.list_open_prs", new_callable=AsyncMock
-        ) as mock_list:
+        with (
+            patch(
+                "zajecdaemon.poller.list_open_prs", new_callable=AsyncMock
+            ) as mock_list,
+            patch(
+                "zajecdaemon.poller.cleanup_worktree", new_callable=AsyncMock
+            ) as mock_cleanup,
+        ):
             mock_list.return_value = []
 
             await poller.poll_repo("owner/repo", capture)
 
-        assert state.get("owner/repo", 42).is_open is False
+        mock_cleanup.assert_awaited_once_with(config.base_dir, "owner/repo", 42)
+        assert state.get("owner/repo", 42) is None
         assert len(enqueued) == 0
 
     @pytest.mark.asyncio
@@ -378,7 +394,7 @@ class TestPoller:
         state = self._make_state(tmp_path)
         qm = QueueManager()
         qm.set_running("owner/repo", 42)
-        poller = Poller(state, qm)
+        poller = Poller(state, qm, self._make_config(tmp_path))
         enqueued = []
 
         async def capture(task: Task):

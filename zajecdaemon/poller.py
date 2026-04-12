@@ -2,7 +2,8 @@ from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
 import logging
 
-from zajecdaemon.config import DEFAULTS
+from zajecdaemon.config import DEFAULTS, Config
+from zajecdaemon.git_worktree import cleanup_worktree
 from zajecdaemon.github_cli import (
     fetch_comments,
     fetch_pr_commits,
@@ -44,9 +45,12 @@ PollCallback = Callable[[Task], Coroutine[None, None, None]]
 
 
 class Poller:
-    def __init__(self, state_store: StateStore, queue: QueueManager) -> None:
+    def __init__(
+        self, state_store: StateStore, queue: QueueManager, config: Config
+    ) -> None:
         self._state = state_store
         self._queue = queue
+        self._config = config
 
     async def poll_repo(
         self,
@@ -67,6 +71,17 @@ class Poller:
                 if state_entry.is_open:
                     logger.info("PR %s#%d closed", repo, state_entry.pr_number)
                     state_entry.is_open = False
+                try:
+                    await cleanup_worktree(
+                        self._config.base_dir, repo, state_entry.pr_number
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to clean up worktree for %s#%d",
+                        repo,
+                        state_entry.pr_number,
+                    )
+                self._state.remove(repo, state_entry.pr_number)
                 continue
 
         for pr in open_prs:

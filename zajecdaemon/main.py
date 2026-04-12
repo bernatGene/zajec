@@ -22,7 +22,7 @@ class Daemon:
         state_path = self._config.base_dir / "state" / "state.json"
         self._state = StateStore(state_path)
         self._queue_mgr = QueueManager()
-        self._poller = Poller(self._state, self._queue_mgr)
+        self._poller = Poller(self._state, self._queue_mgr, self._config)
         self._task_queue: asyncio.Queue[Task] = asyncio.Queue()
         self._running = True
         self._tasks: list[asyncio.Task] = []
