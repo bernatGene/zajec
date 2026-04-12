@@ -15,6 +15,7 @@ class Config(BaseModel):
     opencode_timeout_seconds: int = 600
     max_forbidden_retries: int = 5
     comment_trigger_prefix: str = "#zajec"
+    review_mode: str = "auto"
 
 
 def load_config(path: Path) -> Config:
