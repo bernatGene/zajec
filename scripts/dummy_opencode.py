@@ -54,6 +54,7 @@ def main() -> None:
     run_parser = sub.add_parser("run")
     run_parser.add_argument("prompt")
     run_parser.add_argument("--agent", default="codereview")
+    run_parser.add_argument("--model", default="opencode-go/kimi-k2.5")
     run_parser.add_argument("--format", default="text", dest="fmt")
     run_parser.add_argument("-s", "--session", default=None)
 
