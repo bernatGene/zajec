@@ -23,6 +23,7 @@ class Daemon:
         self._poller = Poller(self._state, self._queue_mgr)
         self._task_queue: asyncio.Queue[Task] = asyncio.Queue()
         self._running = True
+        self._tasks: list[asyncio.Task] = []
 
     async def run(self) -> None:
         self._validate_startup()
@@ -39,6 +40,7 @@ class Daemon:
             for i in range(self._config.worker_concurrency)
         ]
         poller_task = asyncio.create_task(self._poll_loop())
+        self._tasks = [poller_task, *workers]
 
         try:
             await asyncio.gather(poller_task, *workers)
@@ -55,6 +57,8 @@ class Daemon:
     def _handle_signal(self, sig: signal.Signals) -> None:
         logger.info("Received signal %s, shutting down", sig.name)
         self._running = False
+        for task in self._tasks:
+            task.cancel()
 
     async def _poll_loop(self) -> None:
         while self._running:

@@ -10,7 +10,10 @@ async def run_gh_async(repo: str, *args: str) -> str:
     )
     stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
-        raise RuntimeError(f"gh failed: {stderr.decode()}")
+        err = stderr.decode().strip()
+        if proc.returncode < 0 or not err:
+            raise asyncio.CancelledError()
+        raise RuntimeError(f"gh failed: {err}")
     return stdout.decode()
 
 
@@ -21,7 +24,10 @@ async def run_gh_api_async(api_path: str) -> str:
     )
     stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
-        raise RuntimeError(f"gh api failed: {stderr.decode()}")
+        err = stderr.decode().strip()
+        if proc.returncode < 0 or not err:
+            raise asyncio.CancelledError()
+        raise RuntimeError(f"gh api failed: {err}")
     return stdout.decode()
 
 
