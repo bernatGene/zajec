@@ -119,7 +119,10 @@ class Poller:
             )
             self._state.set(state)
             logger.info("New PR %s#%d detected", repo, pr_number)
-            await self._maybe_enqueue(repo, pr_number, pr_url, head_sha, None, enqueue)
+            if self._config.review_mode == "auto":
+                await self._maybe_enqueue(
+                    repo, pr_number, pr_url, head_sha, None, enqueue
+                )
             return
 
         state = existing
@@ -146,11 +149,15 @@ class Poller:
             latest_is_merge = commits and _is_merge_commit(commits[-1])
             if latest_is_merge:
                 logger.debug("Merge commit on %s#%d, skipping", repo, pr_number)
-            else:
+            elif self._config.review_mode == "auto":
                 logger.info("New commit on %s#%d", repo, pr_number)
                 should_enqueue = True
 
-        if not should_enqueue and state.ci_status == "pending":
+        if (
+            not should_enqueue
+            and state.ci_status == "pending"
+            and self._config.review_mode == "auto"
+        ):
             should_enqueue = True
 
         if should_enqueue:

@@ -636,3 +636,215 @@ class TestPoller:
 
         assert len(enqueued) == 0
         assert state.get("owner/repo", 42).ci_status == "pending"
+
+    @pytest.mark.asyncio
+    async def test_new_pr_not_enqueued_in_trigger_mode(self, tmp_path):
+        state = self._make_state(tmp_path)
+        qm = QueueManager()
+        config = self._make_config(tmp_path)
+        config.review_mode = "trigger"
+        poller = Poller(state, qm, config)
+        enqueued = []
+
+        async def capture(task: Task):
+            enqueued.append(task)
+
+        with (
+            patch(
+                "zajecdaemon.poller.list_open_prs", new_callable=AsyncMock
+            ) as mock_list,
+            patch(
+                "zajecdaemon.poller.fetch_pr_meta", new_callable=AsyncMock
+            ) as mock_meta,
+        ):
+            mock_list.return_value = [
+                {
+                    "number": 42,
+                    "title": "Test",
+                    "url": "http://pr/42",
+                    "headRefName": "branch",
+                }
+            ]
+            mock_meta.return_value = {
+                "number": 42,
+                "title": "Test",
+                "url": "http://pr/42",
+                "headRefOid": "sha1",
+                "headRefName": "branch",
+                "state": "open",
+            }
+
+            await poller.poll_repo("owner/repo", capture)
+
+        assert len(enqueued) == 0
+        got = state.get("owner/repo", 42)
+        assert got is not None
+        assert got.head_sha_seen == "sha1"
+
+    @pytest.mark.asyncio
+    async def test_new_commit_not_enqueued_in_trigger_mode(self, tmp_path):
+        initial = PRState(
+            repo="owner/repo",
+            pr_number=42,
+            pr_url="http://pr/42",
+            head_sha_seen="sha1",
+        )
+        state = self._make_state(tmp_path, [initial])
+        qm = QueueManager()
+        config = self._make_config(tmp_path)
+        config.review_mode = "trigger"
+        poller = Poller(state, qm, config)
+        enqueued = []
+
+        async def capture(task: Task):
+            enqueued.append(task)
+
+        with (
+            patch(
+                "zajecdaemon.poller.list_open_prs", new_callable=AsyncMock
+            ) as mock_list,
+            patch(
+                "zajecdaemon.poller.fetch_pr_meta", new_callable=AsyncMock
+            ) as mock_meta,
+            patch(
+                "zajecdaemon.poller.fetch_comments", new_callable=AsyncMock
+            ) as mock_comments,
+            patch(
+                "zajecdaemon.poller.fetch_pr_commits", new_callable=AsyncMock
+            ) as mock_commits,
+        ):
+            mock_list.return_value = [
+                {
+                    "number": 42,
+                    "title": "Test",
+                    "url": "http://pr/42",
+                    "headRefName": "branch",
+                }
+            ]
+            mock_meta.return_value = {
+                "number": 42,
+                "title": "Test",
+                "url": "http://pr/42",
+                "headRefOid": "sha2",
+                "headRefName": "branch",
+                "state": "open",
+            }
+            mock_comments.return_value = []
+            mock_commits.return_value = [{"sha": "sha2", "parents": [{"sha": "sha1"}]}]
+
+            await poller.poll_repo("owner/repo", capture)
+
+        assert len(enqueued) == 0
+        assert state.get("owner/repo", 42).head_sha_seen == "sha2"
+
+    @pytest.mark.asyncio
+    async def test_trigger_comment_enqueues_in_trigger_mode(self, tmp_path):
+        initial = PRState(
+            repo="owner/repo",
+            pr_number=42,
+            pr_url="http://pr/42",
+            head_sha_seen="sha1",
+        )
+        state = self._make_state(tmp_path, [initial])
+        qm = QueueManager()
+        config = self._make_config(tmp_path)
+        config.review_mode = "trigger"
+        poller = Poller(state, qm, config)
+        enqueued = []
+
+        async def capture(task: Task):
+            enqueued.append(task)
+
+        with (
+            patch(
+                "zajecdaemon.poller.list_open_prs", new_callable=AsyncMock
+            ) as mock_list,
+            patch(
+                "zajecdaemon.poller.fetch_pr_meta", new_callable=AsyncMock
+            ) as mock_meta,
+            patch(
+                "zajecdaemon.poller.fetch_comments", new_callable=AsyncMock
+            ) as mock_comments,
+            patch(
+                "zajecdaemon.poller.fetch_check_runs", new_callable=AsyncMock
+            ) as mock_ci,
+        ):
+            mock_list.return_value = [
+                {
+                    "number": 42,
+                    "title": "Test",
+                    "url": "http://pr/42",
+                    "headRefName": "branch",
+                }
+            ]
+            mock_meta.return_value = {
+                "number": 42,
+                "title": "Test",
+                "url": "http://pr/42",
+                "headRefOid": "sha1",
+                "headRefName": "branch",
+                "state": "open",
+            }
+            mock_comments.return_value = [{"id": 100, "body": "#zajec review"}]
+            mock_ci.return_value = []
+
+            await poller.poll_repo("owner/repo", capture)
+
+        assert len(enqueued) == 1
+        assert enqueued[0].trigger_comment_id == 100
+
+    @pytest.mark.asyncio
+    async def test_ci_pending_not_retry_in_trigger_mode(self, tmp_path):
+        initial = PRState(
+            repo="owner/repo",
+            pr_number=42,
+            pr_url="http://pr/42",
+            head_sha_seen="sha1",
+            ci_status="pending",
+        )
+        state = self._make_state(tmp_path, [initial])
+        qm = QueueManager()
+        config = self._make_config(tmp_path)
+        config.review_mode = "trigger"
+        poller = Poller(state, qm, config)
+        enqueued = []
+
+        async def capture(task: Task):
+            enqueued.append(task)
+
+        with (
+            patch(
+                "zajecdaemon.poller.list_open_prs", new_callable=AsyncMock
+            ) as mock_list,
+            patch(
+                "zajecdaemon.poller.fetch_pr_meta", new_callable=AsyncMock
+            ) as mock_meta,
+            patch(
+                "zajecdaemon.poller.fetch_comments", new_callable=AsyncMock
+            ) as mock_comments,
+            patch(
+                "zajecdaemon.poller.fetch_check_runs", new_callable=AsyncMock
+            ) as mock_ci,
+        ):
+            mock_list.return_value = [
+                {
+                    "number": 42,
+                    "title": "Test",
+                    "url": "http://pr/42",
+                    "headRefName": "branch",
+                }
+            ]
+            mock_meta.return_value = {
+                "number": 42,
+                "title": "Test",
+                "url": "http://pr/42",
+                "headRefOid": "sha1",
+                "headRefName": "branch",
+                "state": "open",
+            }
+            mock_comments.return_value = []
+            mock_ci.return_value = [{"status": "completed", "conclusion": "success"}]
+
+            await poller.poll_repo("owner/repo", capture)
+
+        assert len(enqueued) == 0
