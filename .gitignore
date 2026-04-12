@@ -12,4 +12,6 @@ wheels/
 # Virtual environments
 .venv
 
+config.json
+
 PLAN*.md
