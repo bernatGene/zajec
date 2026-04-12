@@ -9,6 +9,9 @@ class Config(BaseModel):
     worker_concurrency: int = 1
     base_dir: Path
     repos: list[str]
+    opencode_command: str = "opencode"
+    opencode_agent: str = "codereview"
+    max_forbidden_retries: int = 5
 
 
 DEFAULTS = {

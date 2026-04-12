@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from pathlib import Path
+import shlex
 from shutil import which
 import signal
 import sys
@@ -52,9 +53,12 @@ class Daemon:
             pass
 
     def _validate_startup(self) -> None:
-        for name in ("gh", "git", "opencode"):
+        for name in ("gh", "git"):
             if which(name) is None:
                 raise RuntimeError(f"Required command not found: {name}")
+        cmd = shlex.split(self._config.opencode_command)[0]
+        if which(cmd) is None and not Path(cmd).is_file():
+            raise RuntimeError(f"Required command not found: {cmd}")
 
         self._config.base_dir.mkdir(parents=True, exist_ok=True)
 
