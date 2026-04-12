@@ -33,6 +33,7 @@ class RunnerResult:
 class _ParsedOutput:
     session_id: str = ""
     step_finish_reason: str = ""
+    last_tool_use: dict | None = None
 
 
 def _log_path(base_dir: Path, repo: str, pr_number: int) -> Path:
@@ -90,6 +91,8 @@ async def _run_command(
                         )
                         if parsed.step_finish_reason != "stop":
                             parsed.step_finish_reason = reason
+                    if event.get("type") == "tool_use":
+                        parsed.last_tool_use = event.get("part", {})
                     if event.get("type") == "assistant":
                         if "content" in event:
                             event["content"] = _truncate_content(event["content"])
@@ -177,8 +180,16 @@ async def run_opencode(
             and forbidden_count < config.max_forbidden_retries
         ):
             forbidden_count += 1
+            tool_info = ""
+            if parsed.last_tool_use:
+                tool_name = parsed.last_tool_use.get("tool", "")
+                tool_input = parsed.last_tool_use.get("input", "")
+                if tool_input and len(tool_input) > 50:
+                    tool_input = "..." + tool_input[-47:]
+                tool_info = f" ({tool_name}: {tool_input})" if tool_name else ""
             logger.info(
-                "Forbidden command, retry %d/%d for %s#%d",
+                "Forbidden command%s, retry %d/%d for %s#%d",
+                tool_info,
                 forbidden_count,
                 config.max_forbidden_retries,
                 repo,
