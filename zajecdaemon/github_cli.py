@@ -61,5 +61,11 @@ async def fetch_pr_commits(repo: str, pr_number: int) -> list[dict[str, Any]]:
     return json.loads(output) if output.strip() else []
 
 
+async def fetch_check_runs(repo: str, sha: str) -> list[dict[str, Any]]:
+    output = await run_gh_api_async(f"repos/{repo}/commits/{sha}/check-runs")
+    data = json.loads(output)
+    return data.get("check_runs", [])
+
+
 async def post_comment(repo: str, pr_number: int, body: str) -> None:
     await run_gh_async(repo, "pr", "comment", str(pr_number), "--body", body)

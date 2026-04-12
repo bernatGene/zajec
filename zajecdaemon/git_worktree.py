@@ -86,5 +86,5 @@ async def cleanup_worktree(base_dir: Path, repo: str, pr_number: int) -> None:
     controller = _controller_path(base_dir, repo)
     if worktree.exists():
         logger.info("Removing worktree for %s#%d", repo, pr_number)
-        await _run_git("worktree", "remove", str(worktree), cwd=controller)
+        await _run_git("worktree", "remove", "--force", str(worktree), cwd=controller)
     await _run_git("branch", "-D", branch, cwd=controller)

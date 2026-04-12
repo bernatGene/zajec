@@ -15,6 +15,7 @@ class PRState(BaseModel):
     last_session_id: str = ""
     last_run_at: datetime | None = None
     last_run_status: str = ""
+    ci_status: str = ""
 
     @property
     def key(self) -> str:

@@ -1,11 +1,13 @@
 import asyncio
 import logging
 from pathlib import Path
+import shlex
 from shutil import which
 import signal
 import sys
 
 from zajecdaemon.config import load_config
+from zajecdaemon.git_worktree import ensure_controller_clone
 from zajecdaemon.github_cli import post_comment
 from zajecdaemon.models import Task
 from zajecdaemon.poller import Poller
@@ -29,6 +31,7 @@ class Daemon:
 
     async def run(self) -> None:
         self._validate_startup()
+        await self._bootstrap_repos()
         logger.info(
             "Daemon started, polling every %ds", self._config.poll_interval_seconds
         )
@@ -50,11 +53,22 @@ class Daemon:
             pass
 
     def _validate_startup(self) -> None:
-        for name in ("gh", "git", "opencode"):
+        for name in ("gh", "git"):
             if which(name) is None:
                 raise RuntimeError(f"Required command not found: {name}")
+        try:
+            cmd = shlex.split(self._config.opencode_command)[0]
+        except ValueError as e:
+            raise RuntimeError(f"Invalid opencode_command: {e}") from e
+        if which(cmd) is None and not Path(cmd).is_file():
+            raise RuntimeError(f"Required command not found: {cmd}")
 
         self._config.base_dir.mkdir(parents=True, exist_ok=True)
+
+    async def _bootstrap_repos(self) -> None:
+        for repo in self._config.repos:
+            logger.info("Bootstrapping controller clone for %s", repo)
+            await ensure_controller_clone(self._config.base_dir, repo)
 
     def _handle_signal(self, sig: signal.Signals) -> None:
         logger.info("Received signal %s, shutting down", sig.name)
@@ -72,7 +86,8 @@ class Daemon:
             await asyncio.sleep(self._config.poll_interval_seconds)
 
     async def _enqueue_task(self, task: Task) -> None:
-        self._queue_mgr.should_enqueue(task.repo, task.pr_number)
+        if not self._queue_mgr.should_enqueue(task.repo, task.pr_number):
+            return
         await self._task_queue.put(task)
         self._queue_mgr.set_running(task.repo, task.pr_number)
         logger.info("Enqueued task for %s#%d", task.repo, task.pr_number)
