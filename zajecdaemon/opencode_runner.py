@@ -145,6 +145,7 @@ async def run_opencode(
             cmd.append(RETRY_MESSAGE)
         else:
             cmd.append(prompt)
+        cmd.extend(["--model", config.opencode_model])
         cmd.extend(["--agent", config.opencode_agent, "--format", "json"])
 
         try:

@@ -11,18 +11,10 @@ class Config(BaseModel):
     repos: list[str]
     opencode_command: str = "opencode"
     opencode_agent: str = "codereview"
+    opencode_model: str = "opencode-go/kimi-k2.5"
     opencode_timeout_seconds: int = 600
     max_forbidden_retries: int = 5
-
-
-DEFAULTS = {
-    "gh_command": "gh",
-    "git_command": "git",
-    "opencode_command": "opencode",
-    "opencode_agent": "codereview",
-    "max_forbidden_retries": 5,
-    "comment_trigger_prefix": "#zajec",
-}
+    comment_trigger_prefix: str = "#zajec"
 
 
 def load_config(path: Path) -> Config:
