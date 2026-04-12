@@ -2,8 +2,10 @@ from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
 import logging
 
-from zajecdaemon.config import DEFAULTS
+from zajecdaemon.config import Config
+from zajecdaemon.git_worktree import cleanup_worktree
 from zajecdaemon.github_cli import (
+    fetch_check_runs,
     fetch_comments,
     fetch_pr_commits,
     fetch_pr_meta,
@@ -16,8 +18,7 @@ from zajecdaemon.state import StateStore
 logger = logging.getLogger(__name__)
 
 
-def _latest_zajec_comment_id(comments: list[dict]) -> int:
-    prefix = DEFAULTS["comment_trigger_prefix"]
+def _latest_zajec_comment_id(comments: list[dict], prefix: str = "#zajec") -> int:
     best = 0
     for c in comments:
         body = c.get("body", "")
@@ -40,13 +41,22 @@ def _latest_non_merge_sha(commits: list[dict]) -> str | None:
     return None
 
 
+def _ci_is_pending(check_runs: list[dict]) -> bool:
+    if not check_runs:
+        return False
+    return any(cr.get("status") in ("queued", "in_progress") for cr in check_runs)
+
+
 PollCallback = Callable[[Task], Coroutine[None, None, None]]
 
 
 class Poller:
-    def __init__(self, state_store: StateStore, queue: QueueManager) -> None:
+    def __init__(
+        self, state_store: StateStore, queue: QueueManager, config: Config
+    ) -> None:
         self._state = state_store
         self._queue = queue
+        self._config = config
 
     async def poll_repo(
         self,
@@ -67,6 +77,17 @@ class Poller:
                 if state_entry.is_open:
                     logger.info("PR %s#%d closed", repo, state_entry.pr_number)
                     state_entry.is_open = False
+                try:
+                    await cleanup_worktree(
+                        self._config.base_dir, repo, state_entry.pr_number
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to clean up worktree for %s#%d",
+                        repo,
+                        state_entry.pr_number,
+                    )
+                self._state.remove(repo, state_entry.pr_number)
                 continue
 
         for pr in open_prs:
@@ -98,21 +119,28 @@ class Poller:
             )
             self._state.set(state)
             logger.info("New PR %s#%d detected", repo, pr_number)
-            await self._maybe_enqueue(repo, pr_number, pr_url, head_sha, None, enqueue)
+            if self._config.review_mode == "auto":
+                await self._maybe_enqueue(
+                    repo, pr_number, pr_url, head_sha, None, enqueue
+                )
             return
 
         state = existing
         state.is_open = True
         state.pr_url = pr_url
 
+        should_enqueue = False
+        trigger_comment_id: int | None = None
+
         comments = await fetch_comments(repo, pr_number)
-        new_comment_id = _latest_zajec_comment_id(comments)
+        new_comment_id = _latest_zajec_comment_id(
+            comments, prefix=self._config.comment_trigger_prefix
+        )
         if new_comment_id > state.last_zajec_comment_id_seen:
             state.last_zajec_comment_id_seen = new_comment_id
-            logger.info("New @zajec comment on %s#%d", repo, pr_number)
-            await self._maybe_enqueue(
-                repo, pr_number, pr_url, head_sha, new_comment_id, enqueue
-            )
+            logger.info("New #zajec comment on %s#%d", repo, pr_number)
+            should_enqueue = True
+            trigger_comment_id = new_comment_id
 
         if head_sha != state.head_sha_seen:
             commits = await fetch_pr_commits(repo, pr_number)
@@ -121,11 +149,21 @@ class Poller:
             latest_is_merge = commits and _is_merge_commit(commits[-1])
             if latest_is_merge:
                 logger.debug("Merge commit on %s#%d, skipping", repo, pr_number)
-            else:
+            elif self._config.review_mode == "auto":
                 logger.info("New commit on %s#%d", repo, pr_number)
-                await self._maybe_enqueue(
-                    repo, pr_number, pr_url, head_sha, None, enqueue
-                )
+                should_enqueue = True
+
+        if (
+            not should_enqueue
+            and state.ci_status == "pending"
+            and self._config.review_mode == "auto"
+        ):
+            should_enqueue = True
+
+        if should_enqueue:
+            await self._maybe_enqueue(
+                repo, pr_number, pr_url, head_sha, trigger_comment_id, enqueue
+            )
 
     async def _maybe_enqueue(
         self,
@@ -138,6 +176,18 @@ class Poller:
     ) -> None:
         if not self._queue.should_enqueue(repo, pr_number):
             return
+
+        check_runs = await fetch_check_runs(repo, head_sha)
+        if _ci_is_pending(check_runs):
+            state = self._state.get(repo, pr_number)
+            if state:
+                state.ci_status = "pending"
+            logger.info("CI pending for %s#%d, waiting", repo, pr_number)
+            return
+
+        state = self._state.get(repo, pr_number)
+        if state:
+            state.ci_status = ""
         task = Task(
             repo=repo,
             pr_number=pr_number,
