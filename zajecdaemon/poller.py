@@ -2,7 +2,7 @@ from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
 import logging
 
-from zajecdaemon.config import DEFAULTS, Config
+from zajecdaemon.config import Config
 from zajecdaemon.git_worktree import cleanup_worktree
 from zajecdaemon.github_cli import (
     fetch_check_runs,
@@ -18,8 +18,7 @@ from zajecdaemon.state import StateStore
 logger = logging.getLogger(__name__)
 
 
-def _latest_zajec_comment_id(comments: list[dict]) -> int:
-    prefix = DEFAULTS["comment_trigger_prefix"]
+def _latest_zajec_comment_id(comments: list[dict], prefix: str = "#zajec") -> int:
     best = 0
     for c in comments:
         body = c.get("body", "")
@@ -131,7 +130,9 @@ class Poller:
         trigger_comment_id: int | None = None
 
         comments = await fetch_comments(repo, pr_number)
-        new_comment_id = _latest_zajec_comment_id(comments)
+        new_comment_id = _latest_zajec_comment_id(
+            comments, prefix=self._config.comment_trigger_prefix
+        )
         if new_comment_id > state.last_zajec_comment_id_seen:
             state.last_zajec_comment_id_seen = new_comment_id
             logger.info("New #zajec comment on %s#%d", repo, pr_number)

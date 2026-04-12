@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from pathlib import Path
+import shlex
 from shutil import which
 import signal
 import sys
@@ -52,9 +53,15 @@ class Daemon:
             pass
 
     def _validate_startup(self) -> None:
-        for name in ("gh", "git", "opencode"):
+        for name in ("gh", "git"):
             if which(name) is None:
                 raise RuntimeError(f"Required command not found: {name}")
+        try:
+            cmd = shlex.split(self._config.opencode_command)[0]
+        except ValueError as e:
+            raise RuntimeError(f"Invalid opencode_command: {e}") from e
+        if which(cmd) is None and not Path(cmd).is_file():
+            raise RuntimeError(f"Required command not found: {cmd}")
 
         self._config.base_dir.mkdir(parents=True, exist_ok=True)
 
@@ -79,7 +86,8 @@ class Daemon:
             await asyncio.sleep(self._config.poll_interval_seconds)
 
     async def _enqueue_task(self, task: Task) -> None:
-        self._queue_mgr.should_enqueue(task.repo, task.pr_number)
+        if not self._queue_mgr.should_enqueue(task.repo, task.pr_number):
+            return
         await self._task_queue.put(task)
         self._queue_mgr.set_running(task.repo, task.pr_number)
         logger.info("Enqueued task for %s#%d", task.repo, task.pr_number)
