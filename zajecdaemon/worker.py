@@ -36,15 +36,22 @@ async def process_task(task: Task, config: Config, state_store: StateStore) -> N
     result = await run_opencode(wt, task.pr_url, task.repo, task.pr_number, config)
 
     state = state_store.get(task.repo, task.pr_number)
-    if state:
-        if result.status == "success":
-            state.head_sha_processed = state.head_sha_seen
-            state.last_zajec_comment_id_processed = state.last_zajec_comment_id_seen
-            state.last_session_id = result.session_id
-        state.last_run_status = result.status
-        state.last_run_at = task.enqueued_at
-        state_store.set(state)
-        state_store.save()
+    if state is None:
+        logger.warning(
+            "State not found for %s#%d after run, result discarded",
+            task.repo,
+            task.pr_number,
+        )
+        return
+
+    if result.status == "success":
+        state.head_sha_processed = state.head_sha_seen
+        state.last_zajec_comment_id_processed = state.last_zajec_comment_id_seen
+        state.last_session_id = result.session_id
+    state.last_run_status = result.status
+    state.last_run_at = task.enqueued_at
+    state_store.set(state)
+    state_store.save()
 
     logger.info(
         "opencode finished for %s#%d: status=%s session=%s retries=%d",

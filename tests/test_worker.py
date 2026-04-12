@@ -198,6 +198,10 @@ async def test_process_task_existing_worktree_skips_fetch(tmp_path):
         await process_task(task, config, state)
 
     mock_fetch.assert_not_awaited()
+    updated = state.get("owner/repo", 42)
+    assert updated is not None
+    assert updated.last_run_status == "success"
+    assert updated.last_session_id == "sess_abc"
 
 
 @pytest.mark.asyncio

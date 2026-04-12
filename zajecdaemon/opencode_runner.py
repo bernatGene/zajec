@@ -5,6 +5,7 @@ import json
 import logging
 from pathlib import Path
 import shlex
+from typing import Literal
 
 from zajecdaemon.config import Config
 
@@ -14,11 +15,16 @@ RETRY_MESSAGE = (
     "you used a forbidden command. continue without using forbidden commands."
 )
 
+Status = Literal["success", "failed", "forbidden_exhausted"]
+
+LOG_HEAD = 2
+LOG_TAIL = 2
+
 
 @dataclass
 class RunnerResult:
+    status: Status
     session_id: str = ""
-    status: str = ""
     log_path: Path | None = None
     forbidden_retries: int = 0
 
@@ -37,10 +43,21 @@ def _log_path(base_dir: Path, repo: str, pr_number: int) -> Path:
     return dir_path / f"{ts}.log"
 
 
+def _truncate_content(content: str) -> str:
+    lines = content.splitlines()
+    if len(lines) <= LOG_HEAD + LOG_TAIL:
+        return content
+    skipped = len(lines) - LOG_HEAD - LOG_TAIL
+    return "\n".join(
+        lines[:LOG_HEAD] + [f"... ({skipped} more lines) ..."] + lines[-LOG_TAIL:]
+    )
+
+
 async def _run_command(
     cmd: list[str],
     cwd: Path,
     log_file: Path,
+    timeout: float,
 ) -> _ParsedOutput:
     parsed = _ParsedOutput()
     proc = await asyncio.create_subprocess_exec(
@@ -49,31 +66,52 @@ async def _run_command(
         stderr=asyncio.subprocess.STDOUT,
         cwd=str(cwd),
     )
-
-    with log_file.open("a") as f:
-        while True:
-            line = await proc.stdout.readline()
-            if not line:
-                break
-            decoded = line.decode().rstrip("\n")
-            if not decoded:
-                continue
-            f.write(decoded + "\n")
-            try:
-                event = json.loads(decoded)
-            except (json.JSONDecodeError, ValueError):
-                logger.debug("Non-JSON line: %s", decoded)
-                continue
-            if session_id := event.get("sessionID"):
-                if not parsed.session_id:
-                    parsed.session_id = session_id
-            if event.get("type") == "step_finish":
-                reason = event.get("reason") or event.get("part", {}).get("reason", "")
-                parsed.step_finish_reason = reason
-
-    await proc.wait()
-    if proc.returncode != 0:
-        logger.warning("opencode exited with code %d", proc.returncode)
+    try:
+        async with asyncio.timeout(timeout):
+            with log_file.open("a", buffering=1) as f:
+                while True:
+                    line = await proc.stdout.readline()
+                    if not line:
+                        break
+                    decoded = line.decode().rstrip("\n")
+                    if not decoded:
+                        continue
+                    try:
+                        event = json.loads(decoded)
+                    except (json.JSONDecodeError, ValueError):
+                        logger.debug("Non-JSON line: %s", decoded)
+                        continue
+                    if session_id := event.get("sessionID"):
+                        if not parsed.session_id:
+                            parsed.session_id = session_id
+                    if event.get("type") == "step_finish":
+                        reason = event.get("reason") or event.get("part", {}).get(
+                            "reason", ""
+                        )
+                        if parsed.step_finish_reason != "stop":
+                            parsed.step_finish_reason = reason
+                    if event.get("type") == "assistant":
+                        if "content" in event:
+                            event["content"] = _truncate_content(event["content"])
+                        f.write(json.dumps(event) + "\n")
+            await proc.wait()
+    except asyncio.TimeoutError:
+        proc.kill()
+        try:
+            await proc.wait()
+        except Exception:
+            pass
+        logger.warning("opencode timed out after %ds", int(timeout))
+    except asyncio.CancelledError:
+        proc.terminate()
+        try:
+            await proc.wait()
+        except Exception:
+            pass
+        raise
+    else:
+        if proc.returncode != 0:
+            logger.warning("opencode exited with code %d", proc.returncode)
     return parsed
 
 
@@ -84,13 +122,24 @@ async def run_opencode(
     pr_number: int,
     config: Config,
 ) -> RunnerResult:
-    log_file = _log_path(config.base_dir, repo, pr_number)
+    try:
+        log_file = _log_path(config.base_dir, repo, pr_number)
+    except OSError:
+        logger.exception("Failed to create log directory for %s#%d", repo, pr_number)
+        return RunnerResult(status="failed")
+
     session_id = ""
     forbidden_count = 0
     prompt = f"review {pr_url}"
 
+    try:
+        base_cmd = shlex.split(config.opencode_command)
+    except ValueError:
+        logger.exception("Invalid opencode_command: %s", config.opencode_command)
+        return RunnerResult(status="failed", log_path=log_file)
+
     while True:
-        cmd = shlex.split(config.opencode_command) + ["run"]
+        cmd = base_cmd + ["run"]
         if session_id:
             cmd.extend(["-s", session_id])
             cmd.append(RETRY_MESSAGE)
@@ -99,7 +148,9 @@ async def run_opencode(
         cmd.extend(["--agent", config.opencode_agent, "--format", "json"])
 
         try:
-            parsed = await _run_command(cmd, worktree, log_file)
+            parsed = await _run_command(
+                cmd, worktree, log_file, config.opencode_timeout_seconds
+            )
         except Exception:
             logger.exception("opencode command failed for %s#%d", repo, pr_number)
             return RunnerResult(
@@ -134,7 +185,7 @@ async def run_opencode(
             )
             continue
 
-        status = "failed"
+        status: Status = "failed"
         if parsed.step_finish_reason == "tool-calls":
             status = "forbidden_exhausted"
 

@@ -90,7 +90,8 @@ def main() -> None:
         )
         sys.exit(1)
     else:
-        print(json.dumps(_step_finish("stop", session_id)))
+        print(f"Unknown DUMMY_OUTCOME: {outcome!r}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
