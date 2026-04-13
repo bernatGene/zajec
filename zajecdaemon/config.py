@@ -10,7 +10,7 @@ class Config(BaseModel):
     base_dir: Path
     repos: list[str]
     opencode_command: str = "opencode"
-    opencode_agent: str = "codereview"
+    opencode_agent: str = "zajec"
     opencode_model: str = "opencode-go/kimi-k2.5"
     opencode_timeout_seconds: int = 600
     max_forbidden_retries: int = 5
