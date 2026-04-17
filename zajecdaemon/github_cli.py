@@ -17,9 +17,7 @@ async def run_gh_async(repo: str, *args: str) -> str:
     return stdout.decode()
 
 
-async def run_gh_api_async(
-    api_path: str, *args: str, paginate: bool = True
-) -> str:
+async def run_gh_api_async(api_path: str, *args: str, paginate: bool = True) -> str:
     cmd = ["gh", "api", api_path, *args]
     if paginate:
         cmd.append("--paginate")
