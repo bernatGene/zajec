@@ -67,5 +67,36 @@ async def fetch_check_runs(repo: str, sha: str) -> list[dict[str, Any]]:
     return data.get("check_runs", [])
 
 
-async def post_comment(repo: str, pr_number: int, body: str) -> None:
-    await run_gh_async(repo, "pr", "comment", str(pr_number), "--body", body)
+async def post_comment(repo: str, pr_number: int, body: str) -> int:
+    output = await run_gh_async(
+        repo,
+        "api",
+        f"repos/{repo}/issues/{pr_number}/comments",
+        "-X",
+        "POST",
+        "-f",
+        f"body={body}",
+    )
+    return int(json.loads(output).get("id", 0))
+
+
+async def update_comment(repo: str, comment_id: int, body: str) -> None:
+    await run_gh_async(
+        repo,
+        "api",
+        f"repos/{repo}/issues/comments/{comment_id}",
+        "-X",
+        "PATCH",
+        "-f",
+        f"body={body}",
+    )
+
+
+async def delete_comment(repo: str, comment_id: int) -> None:
+    await run_gh_async(
+        repo,
+        "api",
+        f"repos/{repo}/issues/comments/{comment_id}",
+        "-X",
+        "DELETE",
+    )

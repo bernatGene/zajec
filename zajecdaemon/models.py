@@ -28,4 +28,5 @@ class Task(BaseModel):
     pr_url: str
     head_sha: str
     trigger_comment_id: int | None = None
+    progress_comment_id: int | None = None
     enqueued_at: datetime

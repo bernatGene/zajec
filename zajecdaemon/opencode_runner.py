@@ -66,6 +66,7 @@ async def _run_command(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
         cwd=str(cwd),
+        limit=1024 * 1024,
     )
     try:
         async with asyncio.timeout(timeout):
