@@ -10,12 +10,18 @@ from zajecdaemon.config import load_config
 from zajecdaemon.git_worktree import ensure_controller_clone
 from zajecdaemon.github_cli import delete_comment, post_comment, update_comment
 from zajecdaemon.models import Task
+from zajecdaemon.opencode_runner import Status
 from zajecdaemon.poller import Poller
 from zajecdaemon.queueing import QueueManager
 from zajecdaemon.state import StateStore
 from zajecdaemon.worker import process_task
 
 logger = logging.getLogger(__name__)
+
+STATUS_SUCCESS: Status = "success"
+STATUS_FAILED: Status = "failed"
+REVIEW_IN_PROGRESS_MESSAGE = "review in progress"
+REVIEW_FAILED_MESSAGE = "review failed"
 
 
 class Daemon:
@@ -91,7 +97,9 @@ class Daemon:
         progress_comment_id: int | None = None
         try:
             progress_comment_id = await post_comment(
-                task.repo, task.pr_number, "review in progress"
+                task.repo,
+                task.pr_number,
+                REVIEW_IN_PROGRESS_MESSAGE,
             )
         except Exception:
             logger.exception(
@@ -104,17 +112,17 @@ class Daemon:
         self._queue_mgr.set_running(task.repo, task.pr_number)
         logger.info("Enqueued task for %s#%d", task.repo, task.pr_number)
 
-    async def _finalize_progress_comment(self, task: Task, status: str) -> None:
+    async def _finalize_progress_comment(self, task: Task, status: Status) -> None:
         if task.progress_comment_id is None:
             return
         try:
-            if status == "success":
+            if status == STATUS_SUCCESS:
                 await delete_comment(task.repo, task.progress_comment_id)
             else:
                 await update_comment(
                     task.repo,
                     task.progress_comment_id,
-                    "review failed",
+                    REVIEW_FAILED_MESSAGE,
                 )
         except Exception:
             logger.exception(
@@ -132,7 +140,7 @@ class Daemon:
                 continue
 
             logger.info("Worker %s processing %s#%d", name, task.repo, task.pr_number)
-            status = "failed"
+            status: Status = STATUS_FAILED
             try:
                 status = await process_task(task, self._config, self._state)
             except Exception:

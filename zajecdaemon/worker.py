@@ -8,13 +8,13 @@ from zajecdaemon.git_worktree import (
     worktree_path,
 )
 from zajecdaemon.models import Task
-from zajecdaemon.opencode_runner import run_opencode
+from zajecdaemon.opencode_runner import Status, run_opencode
 from zajecdaemon.state import StateStore
 
 logger = logging.getLogger(__name__)
 
 
-async def process_task(task: Task, config: Config, state_store: StateStore) -> str:
+async def process_task(task: Task, config: Config, state_store: StateStore) -> Status:
     try:
         await ensure_controller_clone(config.base_dir, task.repo)
         wt_exists = worktree_path(config.base_dir, task.repo, task.pr_number).exists()
