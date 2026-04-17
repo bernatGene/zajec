@@ -8,13 +8,13 @@ from zajecdaemon.git_worktree import (
     worktree_path,
 )
 from zajecdaemon.models import Task
-from zajecdaemon.opencode_runner import run_opencode
+from zajecdaemon.opencode_runner import Status, run_opencode
 from zajecdaemon.state import StateStore
 
 logger = logging.getLogger(__name__)
 
 
-async def process_task(task: Task, config: Config, state_store: StateStore) -> None:
+async def process_task(task: Task, config: Config, state_store: StateStore) -> Status:
     try:
         await ensure_controller_clone(config.base_dir, task.repo)
         wt_exists = worktree_path(config.base_dir, task.repo, task.pr_number).exists()
@@ -31,7 +31,7 @@ async def process_task(task: Task, config: Config, state_store: StateStore) -> N
             state.last_run_at = task.enqueued_at
             state_store.set(state)
             state_store.save()
-        return
+        return "failed"
 
     result = await run_opencode(wt, task.pr_url, task.repo, task.pr_number, config)
 
@@ -42,7 +42,7 @@ async def process_task(task: Task, config: Config, state_store: StateStore) -> N
             task.repo,
             task.pr_number,
         )
-        return
+        return result.status
 
     if result.status == "success":
         state.head_sha_processed = state.head_sha_seen
@@ -61,3 +61,4 @@ async def process_task(task: Task, config: Config, state_store: StateStore) -> N
         result.session_id,
         result.forbidden_retries,
     )
+    return result.status

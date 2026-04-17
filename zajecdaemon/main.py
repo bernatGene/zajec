@@ -8,14 +8,20 @@ import sys
 
 from zajecdaemon.config import load_config
 from zajecdaemon.git_worktree import ensure_controller_clone
-from zajecdaemon.github_cli import post_comment
+from zajecdaemon.github_cli import delete_comment, post_comment, update_comment
 from zajecdaemon.models import Task
+from zajecdaemon.opencode_runner import Status
 from zajecdaemon.poller import Poller
 from zajecdaemon.queueing import QueueManager
 from zajecdaemon.state import StateStore
 from zajecdaemon.worker import process_task
 
 logger = logging.getLogger(__name__)
+
+STATUS_SUCCESS: Status = "success"
+STATUS_FAILED: Status = "failed"
+REVIEW_IN_PROGRESS_MESSAGE = "review in progress"
+REVIEW_FAILED_MESSAGE = "review failed"
 
 
 class Daemon:
@@ -88,14 +94,41 @@ class Daemon:
     async def _enqueue_task(self, task: Task) -> None:
         if not self._queue_mgr.should_enqueue(task.repo, task.pr_number):
             return
-        await self._task_queue.put(task)
-        self._queue_mgr.set_running(task.repo, task.pr_number)
-        logger.info("Enqueued task for %s#%d", task.repo, task.pr_number)
+        progress_comment_id: int | None = None
         try:
-            await post_comment(task.repo, task.pr_number, "review in progress")
+            progress_comment_id = await post_comment(
+                task.repo,
+                task.pr_number,
+                REVIEW_IN_PROGRESS_MESSAGE,
+            )
         except Exception:
             logger.exception(
                 "Failed to post comment on %s#%d", task.repo, task.pr_number
+            )
+        queued_task = task.model_copy(
+            update={"progress_comment_id": progress_comment_id}
+        )
+        await self._task_queue.put(queued_task)
+        self._queue_mgr.set_running(task.repo, task.pr_number)
+        logger.info("Enqueued task for %s#%d", task.repo, task.pr_number)
+
+    async def _finalize_progress_comment(self, task: Task, status: Status) -> None:
+        if task.progress_comment_id is None:
+            return
+        try:
+            if status == STATUS_SUCCESS:
+                await delete_comment(task.repo, task.progress_comment_id)
+            else:
+                await update_comment(
+                    task.repo,
+                    task.progress_comment_id,
+                    REVIEW_FAILED_MESSAGE,
+                )
+        except Exception:
+            logger.exception(
+                "Failed to finalize progress comment on %s#%d",
+                task.repo,
+                task.pr_number,
             )
 
     async def _worker(self, name: str) -> None:
@@ -107,13 +140,15 @@ class Daemon:
                 continue
 
             logger.info("Worker %s processing %s#%d", name, task.repo, task.pr_number)
+            status: Status = STATUS_FAILED
             try:
-                await process_task(task, self._config, self._state)
+                status = await process_task(task, self._config, self._state)
             except Exception:
                 logger.exception(
                     "Worker %s failed processing %s#%d", name, task.repo, task.pr_number
                 )
             finally:
+                await self._finalize_progress_comment(task, status)
                 rerun = self._queue_mgr.check_rerun(task.repo, task.pr_number)
                 self._queue_mgr.set_idle(task.repo, task.pr_number)
                 if rerun:

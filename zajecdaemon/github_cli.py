@@ -17,8 +17,10 @@ async def run_gh_async(repo: str, *args: str) -> str:
     return stdout.decode()
 
 
-async def run_gh_api_async(api_path: str) -> str:
-    cmd = ["gh", "api", api_path, "--paginate"]
+async def run_gh_api_async(api_path: str, *args: str, paginate: bool = True) -> str:
+    cmd = ["gh", "api", api_path, *args]
+    if paginate:
+        cmd.append("--paginate")
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
@@ -67,5 +69,33 @@ async def fetch_check_runs(repo: str, sha: str) -> list[dict[str, Any]]:
     return data.get("check_runs", [])
 
 
-async def post_comment(repo: str, pr_number: int, body: str) -> None:
-    await run_gh_async(repo, "pr", "comment", str(pr_number), "--body", body)
+async def post_comment(repo: str, pr_number: int, body: str) -> int:
+    output = await run_gh_api_async(
+        f"repos/{repo}/issues/{pr_number}/comments",
+        "-X",
+        "POST",
+        "-f",
+        f"body={body}",
+        paginate=False,
+    )
+    return int(json.loads(output).get("id", 0))
+
+
+async def update_comment(repo: str, comment_id: int, body: str) -> None:
+    await run_gh_api_async(
+        f"repos/{repo}/issues/comments/{comment_id}",
+        "-X",
+        "PATCH",
+        "-f",
+        f"body={body}",
+        paginate=False,
+    )
+
+
+async def delete_comment(repo: str, comment_id: int) -> None:
+    await run_gh_api_async(
+        f"repos/{repo}/issues/comments/{comment_id}",
+        "-X",
+        "DELETE",
+        paginate=False,
+    )
