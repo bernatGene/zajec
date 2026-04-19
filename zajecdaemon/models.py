@@ -16,6 +16,7 @@ class PRState(BaseModel):
     last_run_at: datetime | None = None
     last_run_status: str = ""
     ci_status: str = ""
+    ci_trigger_comment_id: int | None = None
 
     @property
     def key(self) -> str:

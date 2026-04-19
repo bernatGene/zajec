@@ -159,6 +159,7 @@ class Poller:
             and self._config.review_mode == "auto"
         ):
             should_enqueue = True
+            trigger_comment_id = state.ci_trigger_comment_id
 
         if should_enqueue:
             await self._maybe_enqueue(
@@ -182,12 +183,14 @@ class Poller:
             state = self._state.get(repo, pr_number)
             if state:
                 state.ci_status = "pending"
+                state.ci_trigger_comment_id = trigger_comment_id
             logger.info("CI pending for %s#%d, waiting", repo, pr_number)
             return
 
         state = self._state.get(repo, pr_number)
         if state:
             state.ci_status = ""
+            state.ci_trigger_comment_id = None
         task = Task(
             repo=repo,
             pr_number=pr_number,

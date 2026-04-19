@@ -20,6 +20,8 @@ def test_pr_state_defaults():
     assert s.last_session_id == ""
     assert s.last_run_at is None
     assert s.last_run_status == ""
+    assert s.ci_status == ""
+    assert s.ci_trigger_comment_id is None
 
 
 def test_task_defaults():
