@@ -153,11 +153,7 @@ class Poller:
                 logger.info("New commit on %s#%d", repo, pr_number)
                 should_enqueue = True
 
-        if (
-            not should_enqueue
-            and state.ci_status == "pending"
-            and self._config.review_mode == "auto"
-        ):
+        if not should_enqueue and state.ci_status == "pending":
             should_enqueue = True
             trigger_comment_id = state.ci_trigger_comment_id
 
