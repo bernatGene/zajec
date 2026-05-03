@@ -592,7 +592,9 @@ class TestPoller:
         )
         state = self._make_state(tmp_path, [initial])
         qm = QueueManager()
-        poller = Poller(state, qm, self._make_config(tmp_path))
+        config = self._make_config(tmp_path)
+        config.review_mode = "trigger"
+        poller = Poller(state, qm, config)
         enqueued = []
 
         async def capture(task: Task):
@@ -856,13 +858,14 @@ class TestPoller:
         assert enqueued[0].trigger_comment_id == 100
 
     @pytest.mark.asyncio
-    async def test_ci_pending_not_retry_in_trigger_mode(self, tmp_path):
+    async def test_ci_pending_retries_in_trigger_mode(self, tmp_path):
         initial = PRState(
             repo="owner/repo",
             pr_number=42,
             pr_url="http://pr/42",
             head_sha_seen="sha1",
             ci_status="pending",
+            ci_trigger_comment_id=100,
         )
         state = self._make_state(tmp_path, [initial])
         qm = QueueManager()
@@ -909,4 +912,5 @@ class TestPoller:
 
             await poller.poll_repo("owner/repo", capture)
 
-        assert len(enqueued) == 0
+        assert len(enqueued) == 1
+        assert enqueued[0].trigger_comment_id == 100

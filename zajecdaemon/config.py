@@ -11,7 +11,7 @@ class Config(BaseModel):
     repos: list[str]
     opencode_command: str = "opencode"
     opencode_agent: str = "zajec"
-    opencode_model: str = "opencode-go/kimi-k2.5"
+    opencode_model: str = "opencode-go/kimi-k2.6"
     opencode_timeout_seconds: int = 600
     max_forbidden_retries: int = 5
     comment_trigger_prefix: str = "#zajec"
