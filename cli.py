@@ -8,6 +8,7 @@ from github import (
     fetch_review_comments,
     fetch_reviews,
     publish_comment,
+    update_pr_title,
 )
 from normalize import format_context
 
@@ -27,6 +28,11 @@ def main() -> None:
     pub_parser.add_argument("--pr", type=int, required=True, help="PR number")
     pub_parser.add_argument("--body-file", required=True, help="Path to markdown file")
 
+    title_parser = subparsers.add_parser("update-title", help="Update a PR title")
+    title_parser.add_argument("--repo", required=True, help="owner/repo")
+    title_parser.add_argument("--pr", type=int, required=True, help="PR number")
+    title_parser.add_argument("--title", required=True, help="New PR title")
+
     args = parser.parse_args()
 
     if args.command == "get-context":
@@ -45,6 +51,20 @@ def main() -> None:
         try:
             publish_comment(args.repo, args.pr, args.body_file)
             print(json.dumps({"repo": args.repo, "pr": args.pr, "published": True}))
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    elif args.command == "update-title":
+        try:
+            update_pr_title(args.repo, args.pr, args.title)
+            result = {
+                "repo": args.repo,
+                "pr": args.pr,
+                "title": args.title,
+                "updated": True,
+            }
+            print(json.dumps(result, separators=(",", ":")))
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)

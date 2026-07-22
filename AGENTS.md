@@ -35,10 +35,11 @@ comment when making an exception.
 
 ## CLI Surface
 
-The tool exposes exactly two commands:
+The tool exposes exactly three commands:
 
 - `zajec get-context --repo owner/repo --pr <n>` - outputs normalized JSON to stdout
 - `zajec publish-comment --repo owner/repo --pr <n> --body-file <path>` - outputs compact JSON to stdout
+- `zajec update-title --repo owner/repo --pr <n> --title <title>` - outputs compact JSON to stdout
 
 Error messages go to stderr with non-zero exit code.
 

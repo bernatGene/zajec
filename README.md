@@ -6,12 +6,13 @@ CLI tool and daemon for orchestrating automated code reviews on GitHub PRs. GitH
 
 ### 1. CLI Tool (`zajec`)
 
-A narrow interface between a local code review agent and GitHub. Fetches PR context as normalized JSON and publishes summary comments.
+A narrow interface between a local code review agent and GitHub. Fetches PR context, publishes summary comments, and updates PR titles.
 
 **Commands:**
 
 - `zajec get-context --repo owner/repo --pr 123` - fetch PR metadata, comments, and reviews as JSON
 - `zajec publish-comment --repo owner/repo --pr 123 --body-file review.md` - publish a review comment
+- `zajec update-title --repo owner/repo --pr 123 --title "[MOT-323] Improve retry handling"` - update the PR title
 
 ### 2. Daemon (`zajecdaemon`)
 
@@ -57,6 +58,12 @@ Publish a review comment:
 
 ```bash
 zajec publish-comment --repo owner/repo --pr 123 --body-file review.md
+```
+
+Update a PR title:
+
+```bash
+zajec update-title --repo owner/repo --pr 123 --title "[MOT-323] Improve retry handling"
 ```
 
 ## Daemon Usage

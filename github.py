@@ -55,3 +55,9 @@ def publish_comment(repo: str, pr_number: int, body_file: str) -> None:
     if not content.strip():
         raise ValueError("Comment file is empty")
     run_gh(repo, "pr", "comment", str(pr_number), "--body-file", str(path))
+
+
+def update_pr_title(repo: str, pr_number: int, title: str) -> None:
+    if not title.strip():
+        raise ValueError("PR title is empty")
+    run_gh(repo, "pr", "edit", str(pr_number), "--title", title)

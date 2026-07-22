@@ -56,6 +56,7 @@ def main() -> None:
     run_parser.add_argument("--agent", default="codereview")
     run_parser.add_argument("--model", default="opencode-go/kimi-k2.5")
     run_parser.add_argument("--format", default="text", dest="fmt")
+    run_parser.add_argument("--dir", default=None)
     run_parser.add_argument("-s", "--session", default=None)
 
     args = parser.parse_args()

@@ -59,6 +59,9 @@ async def test_run_opencode_forbidden_once_then_success(tmp_path, monkeypatch):
 
     lines = result.log_path.read_text().strip().split("\n")
     json_lines = [json.loads(line) for line in lines if line.strip().startswith("{")]
+    assert json_lines[0]["type"] == "runner_start"
+    tool_events = [e for e in json_lines if e.get("type") == "tool_use"]
+    assert len(tool_events) == 1
     stop_events = [e for e in json_lines if e.get("type") == "assistant"]
     assert len(stop_events) >= 1
 

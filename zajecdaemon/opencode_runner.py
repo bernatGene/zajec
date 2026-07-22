@@ -34,6 +34,8 @@ class _ParsedOutput:
     session_id: str = ""
     step_finish_reason: str = ""
     last_tool_use: dict | None = None
+    last_event_type: str = ""
+    event_count: int = 0
 
 
 def _log_path(base_dir: Path, repo: str, pr_number: int) -> Path:
@@ -54,6 +56,22 @@ def _truncate_content(content: str) -> str:
     )
 
 
+def _truncate_value(value: object, max_length: int = 4000) -> object:
+    if isinstance(value, str):
+        if len(value) <= max_length:
+            return value
+        return f"{value[:max_length]}... ({len(value) - max_length} more chars)"
+    if isinstance(value, dict):
+        return {key: _truncate_value(item, max_length) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_truncate_value(item, max_length) for item in value]
+    return value
+
+
+def _write_log_event(log_file, event: dict) -> None:
+    log_file.write(json.dumps(_truncate_value(event)) + "\n")
+
+
 async def _run_command(
     cmd: list[str],
     cwd: Path,
@@ -68,9 +86,25 @@ async def _run_command(
         cwd=str(cwd),
         limit=1024 * 1024,
     )
+    logger.info(
+        "Started opencode pid=%d cwd=%s cmd=%s log=%s",
+        proc.pid,
+        cwd,
+        shlex.join(cmd),
+        log_file,
+    )
     try:
         async with asyncio.timeout(timeout):
             with log_file.open("a", buffering=1) as f:
+                _write_log_event(
+                    f,
+                    {
+                        "type": "runner_start",
+                        "pid": proc.pid,
+                        "cwd": str(cwd),
+                        "cmd": cmd,
+                    },
+                )
                 while True:
                     line = await proc.stdout.readline()
                     if not line:
@@ -82,7 +116,16 @@ async def _run_command(
                         event = json.loads(decoded)
                     except (json.JSONDecodeError, ValueError):
                         logger.debug("Non-JSON line: %s", decoded)
+                        _write_log_event(
+                            f,
+                            {
+                                "type": "runner_raw_output",
+                                "content": decoded,
+                            },
+                        )
                         continue
+                    parsed.event_count += 1
+                    parsed.last_event_type = event.get("type", "")
                     if session_id := event.get("sessionID"):
                         if not parsed.session_id:
                             parsed.session_id = session_id
@@ -94,10 +137,9 @@ async def _run_command(
                             parsed.step_finish_reason = reason
                     if event.get("type") == "tool_use":
                         parsed.last_tool_use = event.get("part", {})
-                    if event.get("type") == "assistant":
-                        if "content" in event:
-                            event["content"] = _truncate_content(event["content"])
-                        f.write(json.dumps(event) + "\n")
+                    if event.get("type") == "assistant" and "content" in event:
+                        event["content"] = _truncate_content(event["content"])
+                    _write_log_event(f, event)
             await proc.wait()
     except asyncio.TimeoutError:
         proc.kill()
@@ -105,7 +147,26 @@ async def _run_command(
             await proc.wait()
         except Exception:
             pass
-        logger.warning("opencode timed out after %ds", int(timeout))
+        with log_file.open("a", buffering=1) as f:
+            _write_log_event(
+                f,
+                {
+                    "type": "runner_timeout",
+                    "timeout_seconds": int(timeout),
+                    "sessionID": parsed.session_id,
+                    "last_event_type": parsed.last_event_type,
+                    "event_count": parsed.event_count,
+                    "returncode": proc.returncode,
+                },
+            )
+        logger.warning(
+            "opencode timed out after %ds pid=%d session=%s last_event=%s events=%d",
+            int(timeout),
+            proc.pid,
+            parsed.session_id,
+            parsed.last_event_type,
+            parsed.event_count,
+        )
     except asyncio.CancelledError:
         proc.terminate()
         try:
@@ -151,6 +212,7 @@ async def run_opencode(
             cmd.append(prompt)
         cmd.extend(["--model", config.opencode_model])
         cmd.extend(["--agent", config.opencode_agent, "--format", "json"])
+        cmd.extend(["--dir", str(worktree)])
 
         try:
             parsed = await _run_command(
